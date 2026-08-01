@@ -254,3 +254,114 @@ def ask_int(prompt, min_value, max_value):
             print("⚠️  %d~%d 범위의 숫자를 입력하세요." % (min_value, max_value))
             continue
         return value
+
+
+# ============================================================
+# 8. 성능 분석
+# ============================================================
+def print_performance_table(sizes=PERF_SIZES, repeat=REPEAT):
+    """크기별 MAC 평균 연산 시간을 표로 출력한다."""
+    print("")
+    print("%-10s %14s %12s %16s" % ("크기", "평균 시간(ms)", "연산 횟수", "1회 곱셈당(µs)"))
+    print(LINE)
+
+    rows = []
+    for size in sizes:
+        pattern = make_cross(size)
+        filter_matrix = make_cross(size)
+        _, average_ms = measure_mac(pattern, filter_matrix, repeat)
+        operations = size * size
+        per_operation_us = (average_ms * 1000.0) / operations
+        rows.append((size, average_ms, operations, per_operation_us))
+        print("%-10s %14.4f %12d %16.4f" % (
+            "%d×%d" % (size, size),
+            average_ms,
+            operations,
+            per_operation_us,
+        ))
+
+    print(LINE)
+    print("* 연산 횟수 = N² (한 칸마다 곱셈 1번 + 누적 덧셈 1번)")
+    print("* '1회 곱셈당' 시간이 거의 일정하면, 전체 시간이 N² 에 비례한다는 뜻 → O(N²)")
+    return rows
+
+
+# ============================================================
+# 9. 모드 1 : 사용자 입력 (3×3)
+# ============================================================
+def read_matrix(title, size):
+    """
+    size 줄을 입력받아 size×size 배열을 만든다.
+    행/열 개수가 맞지 않거나 숫자로 바꿀 수 없으면 처음부터 다시 입력받는다.
+    """
+    while True:
+        print("")
+        print("%s (%d줄 입력, 공백으로 구분)" % (title, size))
+
+        rows = []
+        failed = False
+        for _ in range(size):
+            line = input().strip()
+            tokens = line.split()
+
+            if len(tokens) != size:
+                print(
+                    "⚠️  입력 형식 오류: 각 줄에 %d개의 숫자를 공백으로 구분해 입력하세요. "
+                    "(입력된 개수: %d) → 처음부터 다시 입력합니다." % (size, len(tokens))
+                )
+                failed = True
+                break
+
+            try:
+                rows.append([float(token) for token in tokens])
+            except ValueError:
+                print("⚠️  숫자로 바꿀 수 없는 값이 있습니다. → 처음부터 다시 입력합니다.")
+                failed = True
+                break
+
+        if failed:
+            continue
+
+        problem = validate_matrix(rows, size)
+        if problem:
+            print("⚠️  %s → 처음부터 다시 입력합니다." % problem)
+            continue
+
+        return rows
+
+
+def run_user_mode(size=3):
+    """필터 A, B 와 패턴을 직접 입력받아 판정한다."""
+    header("[1] 필터 입력")
+    filter_a = read_matrix("필터 A", size)
+    filter_b = read_matrix("필터 B", size)
+
+    print("")
+    print("✓ 필터 A 저장 완료")
+    print_matrix(filter_a)
+    print("✓ 필터 B 저장 완료")
+    print_matrix(filter_b)
+
+    header("[2] 패턴 입력")
+    pattern = read_matrix("패턴", size)
+    print("")
+    print("✓ 패턴 저장 완료")
+    print_matrix(pattern)
+
+    header("[3] MAC 결과")
+    score_a, time_a = measure_mac(pattern, filter_a)
+    score_b, time_b = measure_mac(pattern, filter_b)
+    verdict = decide(score_a, score_b, "A", "B")
+
+    print_score("A", score_a)
+    print_score("B", score_b)
+    print("연산 시간(평균/%d회): A %.4f ms / B %.4f ms" % (REPEAT, time_a, time_b))
+    print("두 점수 차이: %r (기준 epsilon = %r)" % (abs(score_a - score_b), EPSILON))
+
+    if verdict == "UNDECIDED":
+        print("판정: 판정 불가 (|A-B| < %r)" % EPSILON)
+    else:
+        print("판정: %s" % verdict)
+
+    header("[4] 성능 분석 (%d×%d, 평균/%d회)" % (size, size, REPEAT))
+    print_performance_table((size,))
