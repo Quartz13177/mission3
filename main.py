@@ -110,3 +110,147 @@ def mac_1d(flat_pattern, flat_filter):
     for index in range(len(flat_pattern)):
         total += flat_pattern[index] * flat_filter[index]
     return total
+
+
+# ============================================================
+# 4. 연산 시간 측정
+# ============================================================
+def measure_mac(pattern, filter_matrix, repeat=REPEAT):
+    """
+    MAC 연산을 repeat 번 반복해서 (점수, 1회 평균 시간(ms)) 를 돌려준다.
+
+    시간 측정은 '연산 함수 호출 구간'만 감싸므로
+    입력/출력/파일 읽기 시간은 포함되지 않는다.
+    """
+    score = 0.0
+    elapsed = 0.0
+    for _ in range(repeat):
+        start = time.perf_counter()
+        score = mac(pattern, filter_matrix)
+        elapsed += time.perf_counter() - start
+    return score, (elapsed / repeat) * 1000.0
+
+
+def measure_mac_1d(pattern, filter_matrix, repeat=REPEAT):
+    """[보너스 1] 1차원 변환 후 측정. 변환 시간은 측정 구간에서 제외한다."""
+    flat_pattern = flatten(pattern)
+    flat_filter = flatten(filter_matrix)
+    score = 0.0
+    elapsed = 0.0
+    for _ in range(repeat):
+        start = time.perf_counter()
+        score = mac_1d(flat_pattern, flat_filter)
+        elapsed += time.perf_counter() - start
+    return score, (elapsed / repeat) * 1000.0
+
+
+# ============================================================
+# 5. 점수 비교 정책 (부동소수점 / 동점 처리)
+# ============================================================
+def decide(score_a, score_b, label_a=CROSS, label_b=X):
+    """
+    두 점수를 비교해서 판정한다.
+
+    컴퓨터의 소수 계산에는 아주 작은 오차가 생긴다.
+    (예: 0.1 을 8번 더하면 0.8 이 아니라 0.7999999999999999)
+    그래서 '완전히 같은가(==)' 대신 '차이가 아주 작은가(< 1e-9)' 로 비교하고,
+    그 경우는 승자를 정하지 않고 UNDECIDED(판정 불가) 로 둔다.
+    """
+    if abs(score_a - score_b) < EPSILON:
+        return "UNDECIDED"
+    return label_a if score_a > score_b else label_b
+
+
+# ============================================================
+# 6. 검증 도우미 (잘못된 데이터를 걸러낸다)
+# ============================================================
+def validate_matrix(matrix, expected_size=None):
+    """정상이면 None, 문제가 있으면 사람이 읽을 수 있는 오류 메시지를 돌려준다."""
+    if not isinstance(matrix, list) or len(matrix) == 0:
+        return "2차원 배열(리스트) 형태가 아닙니다."
+
+    size = len(matrix)
+    if expected_size is not None and size != expected_size:
+        return "행 개수가 %d가 아닙니다. (현재 %d)" % (expected_size, size)
+
+    for row_index, row in enumerate(matrix):
+        if not isinstance(row, list):
+            return "%d번째 행이 배열이 아닙니다." % (row_index + 1)
+        if len(row) != size:
+            return "%d번째 행의 길이(%d)가 행 개수(%d)와 다릅니다. (정사각형이 아님)" % (
+                row_index + 1,
+                len(row),
+                size,
+            )
+        for col_index, value in enumerate(row):
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                return "(%d행 %d열)의 값이 숫자가 아닙니다: %r" % (
+                    row_index + 1,
+                    col_index + 1,
+                    value,
+                )
+    return None
+
+
+def parse_filter_key(key):
+    """'size_5' → 5 / 형식이 다르면 None"""
+    if not isinstance(key, str):
+        return None
+    matched = re.match(r"^size_(\d+)$", key.strip())
+    return int(matched.group(1)) if matched else None
+
+
+def parse_pattern_key(key):
+    """'size_13_2' → (13, 2) / 형식이 다르면 None"""
+    if not isinstance(key, str):
+        return None
+    matched = re.match(r"^size_(\d+)_(\d+)$", key.strip())
+    if not matched:
+        return None
+    return int(matched.group(1)), int(matched.group(2))
+
+
+# ============================================================
+# 7. 출력 도우미
+# ============================================================
+def cell_text(value):
+    """1.0 처럼 소수점이 의미 없는 값은 1 로 짧게 보여준다."""
+    number = float(value)
+    if number.is_integer():
+        return str(int(number))
+    return str(number)
+
+
+def print_matrix(matrix, indent="    "):
+    for row in matrix:
+        print(indent + " ".join(cell_text(value) for value in row))
+
+
+def print_score(label, score):
+    # repr 을 쓰면 0.7999999999999999 처럼 실제 저장된 값이 그대로 보인다.
+    print("%s 점수: %r" % (label, score))
+
+
+def header(title):
+    print("")
+    print("#" + LINE)
+    print("# " + title)
+    print("#" + LINE)
+
+
+def ask_int(prompt, min_value, max_value):
+    """범위 안의 정수를 받을 때까지 다시 묻는다."""
+    while True:
+        text = input(prompt).strip()
+        if text == "":
+            print("⚠️  입력이 비어 있습니다. %d~%d 중에서 선택하세요." % (min_value, max_value))
+            continue
+        try:
+            value = int(text)
+        except ValueError:
+            print("⚠️  숫자만 입력할 수 있습니다. %d~%d 중에서 선택하세요." % (min_value, max_value))
+            continue
+        if value < min_value or value > max_value:
+            print("⚠️  %d~%d 범위의 숫자를 입력하세요." % (min_value, max_value))
+            continue
+        return value
