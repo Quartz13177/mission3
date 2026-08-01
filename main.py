@@ -580,3 +580,89 @@ def run_json_mode(path=None):
     else:
         print("")
         print("실패 케이스 없음 (라벨 정규화 + epsilon 비교 정책이 정상 동작)")
+
+
+# ============================================================
+# 11. 보너스 1 : 2차원 vs 1차원 배열 최적화 비교
+# ============================================================
+def print_optimization_report(sizes=PERF_SIZES, repeat=OPTIMIZATION_REPEAT):
+    """
+    [보너스 1] 2차원 배열 접근 vs 1차원 배열 접근 성능 비교.
+
+    한 번의 연산이 0.00x ms 수준이라 10회 평균으로는 측정 오차가 실제 차이보다 크다.
+    그래서 이 비교만 반복 횟수를 늘려서(기본 300회) 값을 안정시킨다.
+    """
+    print("")
+    print("(반복 %d회 평균 - 측정 오차를 줄이기 위해 성능 표보다 많이 반복합니다)" % repeat)
+    print("%-10s %16s %16s %12s" % ("크기", "2차원(ms)", "1차원(ms)", "변화율"))
+    print(LINE)
+
+    for size in sizes:
+        pattern = make_cross(size)
+        filter_matrix = make_cross(size)
+
+        score_2d, time_2d = measure_mac(pattern, filter_matrix, repeat)
+        score_1d, time_1d = measure_mac_1d(pattern, filter_matrix, repeat)
+
+        if time_2d > 0:
+            change = (time_2d - time_1d) / time_2d * 100.0
+        else:
+            change = 0.0
+
+        # 두 방식의 계산 결과가 같은지도 함께 확인한다.
+        same = "같음" if abs(score_2d - score_1d) < EPSILON else "다름!"
+        print("%-10s %16.4f %16.4f %11.1f%%  (결과 %s)" % (
+            "%d×%d" % (size, size),
+            time_2d,
+            time_1d,
+            change,
+            same,
+        ))
+
+    print(LINE)
+    print("* 변화율이 양수면 1차원 방식이 더 빠르다는 뜻 (행 리스트를 한 번 더 꺼내는 과정이 없어짐)")
+    print("* 연산 횟수 N² 자체는 그대로이므로 시간 복잡도는 여전히 O(N²)")
+
+
+# ============================================================
+# 12. 메인 실행 흐름
+# ============================================================
+def print_menu():
+    print("")
+    print("[모드 선택]")
+    print("1. 사용자 입력 (3x3)")
+    print("2. data.json 분석")
+    print("3. 성능 분석 + 최적화 비교 (보너스)")
+    print("4. 종료")
+
+
+def main():
+    print("")
+    print("=== Mini NPU Simulator ===")
+
+    while True:
+        print_menu()
+        choice = ask_int("선택: ", 1, 4)
+
+        if choice == 1:
+            run_user_mode(3)
+        elif choice == 2:
+            run_json_mode()
+        elif choice == 3:
+            header("성능 분석 (평균/%d회)" % REPEAT)
+            print_performance_table(PERF_SIZES)
+            header("[보너스] 1차원 배열 최적화 비교")
+            print_optimization_report(PERF_SIZES)
+        else:
+            print("")
+            print("프로그램을 종료합니다.")
+            break
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (KeyboardInterrupt, EOFError):
+        # Ctrl+C 나 입력 종료에도 오류 화면 없이 깔끔하게 끝낸다.
+        print("")
+        print("입력이 중단되었습니다. 프로그램을 종료합니다.")
