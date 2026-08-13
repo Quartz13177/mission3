@@ -46,11 +46,11 @@ def normalize_label(value):
     """
     '+' / 'cross' / 'Cross' → 'Cross',  'x' / 'X' / '×' → 'X'
     해석할 수 없으면 None 을 돌려준다.
-
     왜 필요한가?
       데이터 파일에서는 expected 를 '+' 로, 필터 키는 'cross' 로 쓴다.
       표기가 서로 다르면 비교할 수 없으므로, 프로그램 안에서는
       항상 한 가지 표기(Cross / X)로 바꿔서 사용한다.
+      비교 규칙이 바뀌는 경우와 표기를 바꾸는 경우 각각 함수와 표를 고치기 위해 나눠두었다.
     """
     if not isinstance(value, str):
         return None
@@ -61,7 +61,10 @@ def normalize_label(value):
 # 2. 패턴 / 필터 만들기  (보너스 2: 패턴 생성기)
 # ============================================================
 def make_cross(size):
-    """N×N 십자가(+) 패턴을 만든다. 가운데 행과 가운데 열이 1."""
+    """
+    N×N 십자가(+) 패턴을 만든다. 가운데 행과 가운데 열이 1.
+    짝수를 제외했기 때문에 가운데 1로 채우는 규칙이 아닌 단순히 정수 나눗셈만으로 구성하였다.
+    """
     middle = size // 2
     return [
         [1 if (row == middle or col == middle) else 0 for col in range(size)]
