@@ -8,6 +8,7 @@ main.py 의 패턴 생성기(make_cross / make_x)를 그대로 재활용한다. 
 """
 
 import json
+import re
 
 from main import make_cross, make_x
 
@@ -92,9 +93,32 @@ def build_broken():
     }
 
 
+def dumps_matrix_friendly(data):
+    """
+    행렬의 한 행을 한 줄로 붙여서 보여주는 JSON 문자열을 만든다.
+
+    왜 필요한가?
+      json 모듈의 indent 옵션은 모든 배열을 똑같이 취급해서
+      [0, 0, 1, 0, 0] 같은 한 행도 5줄로 펼쳐 버린다.
+      25x25 필터 하나가 625줄이 되어 행렬 모양을 눈으로 확인할 수 없다.
+
+      그래서 일단 평소대로 만든 다음,
+      '안에 다른 배열이 없는 가장 안쪽 배열'(= 행렬의 한 행)만 한 줄로 합친다.
+      공백은 JSON 문법에서 의미가 없으므로 데이터는 전혀 바뀌지 않는다.
+    """
+    text = json.dumps(data, ensure_ascii=False, indent=2)
+
+    def collapse(match):
+        # match.group(1) = 대괄호 사이의 내용. 줄바꿈과 공백을 한 칸으로 정리한다.
+        return "[" + " ".join(match.group(1).split()) + "]"
+
+    # [^\[\]] = 대괄호가 아닌 글자 → 안에 배열이 없는 '가장 안쪽 배열'만 걸린다
+    return re.sub(r"\[([^\[\]]*)\]", collapse, text)
+
+
 def save(data, path):
     with open(path, "w", encoding="utf-8") as file:
-        json.dump(data, file, ensure_ascii=False, indent=2)
+        file.write(dumps_matrix_friendly(data))
         file.write("\n")
     print("생성 완료: %s" % path)
 
